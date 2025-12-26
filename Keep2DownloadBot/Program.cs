@@ -1,7 +1,6 @@
-﻿using Telegram.Bot;
-using Telegram.Bot.Polling;
+﻿using Microsoft.Extensions.Configuration;
 using Serilog;
-using Microsoft.Extensions.Configuration;
+using WTelegram;
 
 namespace Keep2DownloadBot;
 
@@ -21,25 +20,43 @@ internal static class Program
         try
         {
             var config = Configuration.Load();
-            var botClient = new TelegramBotClient(config.BotToken);
-            var handler = new BotHandler(botClient);
+            using var client = new Client(config.ApiId, config.ApiHash);
 
-            using var cts = new CancellationTokenSource();
+            var handler = new BotHandler(client);
 
-            var receiverOptions = new ReceiverOptions
+            // Handle logging from WTelegramClient
+            Helpers.Log = (lvl, str) =>
             {
-                AllowedUpdates = [],
+                if (lvl >= 3)
+                {
+                    Log.Error(str);
+                }
+                else if (lvl == 2)
+                {
+                    Log.Warning(str);
+                }
+                else
+                {
+                    Log.Debug(str);
+                }
             };
 
-            botClient.StartReceiving(handler.HandleUpdateAsync,
-                handler.HandleErrorAsync,
-                receiverOptions,
-                cts.Token);
+            await client.LoginBotIfNeeded(config.BotToken);
+            Log.Information("Bot logged in as: {User}", client.User);
 
-            var me = await botClient.GetMe(cts.Token);
-            Log.Information("Start listening for @{Username}", me.Username);
+            //client.OnOther += handler.HandleUpdateAsync;
 
-            await Task.Delay(-1, cts.Token);
+            Log.Information("Start listening for updates...");
+
+            // Keep the app running
+            var tcs = new TaskCompletionSource();
+            Console.CancelKeyPress += (s, e) =>
+            {
+                e.Cancel = true;
+                tcs.TrySetResult();
+            };
+
+            await tcs.Task;
         }
         catch (Exception ex)
         {
