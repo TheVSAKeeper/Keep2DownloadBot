@@ -7,8 +7,6 @@ namespace Keep2DownloadBot;
 public class BotHandler : IDisposable
 {
     private readonly Client _client;
-
-    // Храним сообщения и InputPeer (куда отвечать) для группы
     private readonly Dictionary<long, (List<Message> Messages, InputPeer Peer)> _mediaGroups = new();
 
     public BotHandler(Client client)
@@ -31,26 +29,25 @@ public class BotHandler : IDisposable
 
         foreach (var update in updates.UpdateList)
         {
-            if (update is UpdateNewMessage unm && unm.message is Message message)
+            if (update is not UpdateNewMessage { message: Message message })
             {
-                // 1. Получаем инфо о чате/пользователе
-                var peerInfo = updates.UserOrChat(message.peer_id);
-                if (peerInfo == null)
-                {
-                    continue;
-                }
-
-                // 2. Преобразуем в InputPeer для отправки ответов
-                var targetPeer = peerInfo.ToInputPeer();
-
-                await HandleMessageAsync(message, targetPeer);
+                continue;
             }
+
+            var peerInfo = updates.UserOrChat(message.peer_id);
+            if (peerInfo == null)
+            {
+                continue;
+            }
+
+            var targetPeer = peerInfo.ToInputPeer();
+
+            await HandleMessageAsync(message, targetPeer);
         }
     }
 
     private async Task HandleMessageAsync(Message message, InputPeer targetPeer)
     {
-        // Проверка: является ли сообщение видео (через Document)
         if (IsVideoMessage(message))
         {
             Log.Information("Received video from peer {PeerId}", message.peer_id.ID);
@@ -66,44 +63,31 @@ public class BotHandler : IDisposable
         }
     }
 
-    // В современной схеме TL видео — это всегда Document с mime-type video/*
     private bool IsVideoMessage(Message message)
     {
-        if (message.media is MessageMediaDocument mmd && mmd.document is Document doc)
+        if (message.media is MessageMediaDocument { document: Document doc })
         {
-            // Проверяем по MIME-типу
-            if (doc.mime_type?.StartsWith("video/") == true)
-            {
-                return true;
-            }
-
-            // Дополнительная проверка: иногда MIME может быть application/octet-stream,
-            // но есть атрибут Video
-            foreach (var attr in doc.attributes)
-            {
-                if (attr is DocumentAttributeVideo)
-                {
-                    return true;
-                }
-            }
+            return doc.mime_type?.StartsWith("video/") == true
+                   || doc.attributes.OfType<DocumentAttributeVideo>().Any();
         }
 
         return false;
     }
 
-    private async Task HandleMediaGroupAsync(Message message, InputPeer targetPeer)
+    private Task HandleMediaGroupAsync(Message message, InputPeer targetPeer)
     {
         var groupId = message.grouped_id;
 
         lock (_mediaGroups)
         {
-            if (!_mediaGroups.ContainsKey(groupId))
+            if (!_mediaGroups.TryGetValue(groupId, out var value))
             {
-                _mediaGroups[groupId] = (new(), targetPeer);
+                value = ([], targetPeer);
+                _mediaGroups[groupId] = value;
 
                 _ = Task.Run(async () =>
                 {
-                    await Task.Delay(2000); // Ждем сбора группы
+                    await Task.Delay(2000);
 
                     List<Message> messages;
                     InputPeer peer;
@@ -127,8 +111,10 @@ public class BotHandler : IDisposable
                 });
             }
 
-            _mediaGroups[groupId].Messages.Add(message);
+            value.Messages.Add(message);
         }
+
+        return Task.CompletedTask;
     }
 
     private async Task ProcessVideoAsync(Message message, InputPeer targetPeer)
@@ -136,13 +122,11 @@ public class BotHandler : IDisposable
         var fileName = "video.mp4";
         Document? documentToDownload = null;
 
-        // Извлекаем документ (единственный способ передачи видео)
-        if (message.media is MessageMediaDocument mmd && mmd.document is Document doc)
+        if (message.media is MessageMediaDocument { document: Document doc })
         {
             documentToDownload = doc;
-            fileName = doc.Filename; // WTelegramClient helper property
+            fileName = doc.Filename;
 
-            // Если имя пустое, генерируем его
             if (string.IsNullOrWhiteSpace(fileName))
             {
                 fileName = $"video_{doc.id}.mp4";
@@ -160,26 +144,14 @@ public class BotHandler : IDisposable
 
             var tempPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}_{fileName}");
 
-            // 1. Скачивание
             await using (var saveStream = File.OpenWrite(tempPath))
             {
                 await _client.DownloadFileAsync(documentToDownload, saveStream);
             }
 
-            // 2. Загрузка
             var inputFile = await _client.UploadFileAsync(tempPath);
 
-            // 3. Отправка
-            // Для отправки видео используем SendMediaAsync с InputMediaUploadedDocument
-            // Важно указать mime-type и атрибуты, чтобы Telegram распознал это как видео
-            var inputMedia = new InputMediaUploadedDocument
-            {
-                file = inputFile,
-                mime_type = "video/mp4",
-                attributes = new[] { new DocumentAttributeVideo { duration = 0, w = 0, h = 0 } },
-            };
-
-            await _client.SendMediaAsync(targetPeer, null, inputFile, reply_to_msg_id: message.id);
+            await _client.SendMediaAsync(targetPeer, null, inputFile,mimeType:"video" , reply_to_msg_id: message.id);
 
             if (File.Exists(tempPath))
             {

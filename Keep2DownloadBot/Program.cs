@@ -24,27 +24,36 @@ internal static class Program
 
             var handler = new BotHandler(client);
 
-            // Handle logging from WTelegramClient
             Helpers.Log = (lvl, str) =>
             {
-                if (lvl >= 3)
+                switch (lvl)
                 {
-                    Log.Error(str);
-                }
-                else if (lvl == 2)
-                {
-                    Log.Warning(str);
-                }
-                else
-                {
-                    Log.Debug(str);
+                    case >= 4:
+                        Log.Error(str);
+                        break;
+
+                    case 3:
+                        Log.Warning(str);
+                        break;
+
+                    case 2:
+                        Log.Information(str);
+                        break;
+
+                    default:
+                        Log.Debug(str);
+                        break;
                 }
             };
 
             await client.LoginBotIfNeeded(config.BotToken);
             Log.Information("Bot logged in as: {User}", client.User);
 
-            //client.OnOther += handler.HandleUpdateAsync;
+            client.OnOther += o =>
+            {
+                Log.Information("Client other: {Object}", o);
+                return Task.CompletedTask;
+            };
 
             Log.Information("Start listening for updates...");
 
