@@ -7,6 +7,7 @@ public class Configuration
     public string BotToken { get; set; } = string.Empty;
     public int ApiId { get; set; }
     public string ApiHash { get; set; } = string.Empty;
+    public string TempPath { get; set; } = "temp";
 
     public static Configuration Load()
     {
@@ -42,6 +43,15 @@ public class Configuration
             BotToken = token,
             ApiId = apiId,
             ApiHash = apiHash,
+            TempPath = config["TempPath"] ?? "temp",
         };
+    }
+
+    public void EnsureDirectoriesExist()
+    {
+        if (!Directory.Exists(TempPath))
+        {
+            Directory.CreateDirectory(TempPath);
+        }
     }
 }

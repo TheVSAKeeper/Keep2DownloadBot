@@ -7,11 +7,13 @@ namespace Keep2DownloadBot;
 public class BotHandler : IDisposable
 {
     private readonly Client _client;
+    private readonly Configuration _config;
     private readonly Dictionary<long, (List<Message> Messages, InputPeer Peer)> _mediaGroups = new();
 
-    public BotHandler(Client client)
+    public BotHandler(Client client, Configuration config)
     {
         _client = client;
+        _config = config;
         _client.OnUpdates += HandleUpdatesInternal;
     }
 
@@ -142,7 +144,7 @@ public class BotHandler : IDisposable
         {
             await _client.SendMessageAsync(targetPeer, $"Processing: {fileName}...", reply_to_msg_id: message.id);
 
-            var tempPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}_{fileName}");
+            var tempPath = Path.Combine(_config.TempPath, $"{Guid.NewGuid()}_{fileName}");
 
             await using (var saveStream = File.OpenWrite(tempPath))
             {
@@ -151,7 +153,7 @@ public class BotHandler : IDisposable
 
             var inputFile = await _client.UploadFileAsync(tempPath);
 
-            await _client.SendMediaAsync(targetPeer, null, inputFile,mimeType:"video" , reply_to_msg_id: message.id);
+            await _client.SendMediaAsync(targetPeer, null, inputFile, "video", message.id);
 
             if (File.Exists(tempPath))
             {

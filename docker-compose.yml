@@ -1,0 +1,16 @@
+services:
+  keep2downloadbot:
+    image: thevsakeeper/keep2downloadbot:latest
+    container_name: keep2downloadbot
+    pull_policy: always
+    environment:
+      BotToken: ${BOT_TOKEN}
+      ApiId: ${API_ID}
+      ApiHash: ${API_HASH}
+      TempPath: ${TEMP_DIRECTORY}
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    volumes:
+      - ${LOGS_DIRECTORY:-./logs}:/app/logs
+      - ${TEMP_DIRECTORY:-./temp}:/app/temp
+    restart: unless-stopped

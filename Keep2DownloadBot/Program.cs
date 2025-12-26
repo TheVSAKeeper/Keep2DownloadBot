@@ -20,9 +20,11 @@ internal static class Program
         try
         {
             var config = Configuration.Load();
-            using var client = new Client(config.ApiId, config.ApiHash);
+            config.EnsureDirectoriesExist();
 
-            var handler = new BotHandler(client);
+            await using var client = new Client(config.ApiId, config.ApiHash);
+
+            var handler = new BotHandler(client, config);
 
             Helpers.Log = (lvl, str) =>
             {

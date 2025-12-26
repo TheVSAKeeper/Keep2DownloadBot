@@ -1,3 +1,8 @@
 <Solution>
+    <Folder Name="/Solution Items/">
+        <File Path=".env" />
+        <File Path=".github/workflows/docker-image.yml" />
+        <File Path="docker-compose.yml" />
+    </Folder>
     <Project Path="Keep2DownloadBot/Keep2DownloadBot.csproj" />
 </Solution>
