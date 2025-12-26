@@ -1,5 +1,7 @@
 ﻿using Telegram.Bot;
 using Telegram.Bot.Polling;
+using Serilog;
+using Microsoft.Extensions.Configuration;
 
 namespace Keep2DownloadBot;
 
@@ -7,6 +9,15 @@ internal static class Program
 {
     private static async Task Main()
     {
+        Log.Logger = new LoggerConfiguration()
+            .ReadFrom.Configuration(new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json", true)
+                .AddJsonFile("appsettings.Development.json", true)
+                .AddEnvironmentVariables()
+                .Build())
+            .CreateLogger();
+
         try
         {
             var config = Configuration.Load();
@@ -26,13 +37,17 @@ internal static class Program
                 cts.Token);
 
             var me = await botClient.GetMe(cts.Token);
-            Console.WriteLine($"Start listening for @{me.Username}");
+            Log.Information("Start listening for @{Username}", me.Username);
 
             await Task.Delay(-1, cts.Token);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Fatal error: {ex.Message}");
+            Log.Fatal(ex, "Fatal error");
+        }
+        finally
+        {
+            await Log.CloseAndFlushAsync();
         }
     }
 }

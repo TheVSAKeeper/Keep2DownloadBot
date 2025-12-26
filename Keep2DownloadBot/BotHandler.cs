@@ -1,5 +1,6 @@
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Serilog;
 
 namespace Keep2DownloadBot;
 
@@ -23,6 +24,7 @@ public class BotHandler
         // We are interested in Video, Document (if it's a video), or MediaGroups
         if (message.Video != null || message.Document != null && message.Document.MimeType?.StartsWith("video/") == true)
         {
+            Log.Information("Received video/document from {Username} in chat {ChatId}", message.From?.Username, message.Chat.Id);
             if (message.MediaGroupId != null)
             {
                 await HandleMediaGroupAsync(message, cancellationToken);
@@ -36,7 +38,7 @@ public class BotHandler
 
     public Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
     {
-        Console.WriteLine($"Error: {exception.Message}");
+        Log.Error(exception, "Error in Telegram Bot");
         return Task.CompletedTask;
     }
 
@@ -73,10 +75,10 @@ public class BotHandler
 
     private async Task ProcessVideoAsync(Message message, CancellationToken cancellationToken)
     {
+        string? fileName = null;
         try
         {
             string fileId;
-            string fileName;
 
             if (message.Video != null)
             {
@@ -118,6 +120,7 @@ public class BotHandler
         }
         catch (Exception ex)
         {
+            Log.Error(ex, "Error processing video {FileName} from {ChatId}", fileName ?? "unknown", message.Chat.Id);
             await _botClient.SendMessage(message.Chat.Id,
                 $"Error processing video: {ex.Message}",
                 replyParameters: message.MessageId,
