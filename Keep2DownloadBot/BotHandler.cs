@@ -21,8 +21,10 @@ public class BotHandler
             return;
         }
 
-        // We are interested in Video, Document (if it's a video), or MediaGroups
-        if (message.Video != null || message.Document != null && message.Document.MimeType?.StartsWith("video/") == true)
+        // We are interested in Video, Document (if it's a video), VideoNote, or MediaGroups
+        if (message.Video != null || 
+            (message.Document != null && message.Document.MimeType?.StartsWith("video/") == true) ||
+            message.VideoNote != null)
         {
             Log.Information("Received video/document from {Username} in chat {ChatId}", message.From?.Username, message.Chat.Id);
             if (message.MediaGroupId != null)
@@ -89,6 +91,11 @@ public class BotHandler
             {
                 fileId = message.Document.FileId;
                 fileName = message.Document.FileName ?? $"video_{fileId}.mp4";
+            }
+            else if (message.VideoNote != null)
+            {
+                fileId = message.VideoNote.FileId;
+                fileName = $"video_note_{fileId}.mp4";
             }
             else
             {
